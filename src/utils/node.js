@@ -1,14 +1,17 @@
 import styleKeys from './styleKeys';
 import { svg, svgns } from './svg';
 
-export function cloneNode ( node ) {
-	const clone = node.cloneNode();
+export function cloneNode ( node, depth, overrideClone ) {
+	const clone = overrideClone ? overrideClone(node, depth) : node.cloneNode();
+
+  if (typeof clone === "undefined"){
+		return;
+	}
 
 	let style;
 	let len;
 	let i;
-
-	let attr;
+	let clonedNode;
 
 	if ( node.nodeType === 1 ) {
 		style = window.getComputedStyle( node );
@@ -19,20 +22,22 @@ export function cloneNode ( node ) {
 
 		len = node.childNodes.length;
 		for ( i = 0; i < len; i += 1 ) {
-			clone.appendChild( cloneNode( node.childNodes[i] ) );
+			clonedNode = cloneNode( node.childNodes[i], depth + 1, overrideClone );
+			if (clonedNode) {
+				clone.appendChild( clonedNode );
+			}
 		}
 	}
 
 	return clone;
 }
 
-export function wrapNode ( node ) {
+export function wrapNode ( node, destinationIsFixed, overrideClone, appendToBody ) {
 	const isSvg = node.namespaceURI === svgns;
 
 	const { left, right, top, bottom } = node.getBoundingClientRect();
 	const style = window.getComputedStyle( node );
-
-	const clone = cloneNode( node );
+	const clone = cloneNode( node, 0, overrideClone);
 
 	const wrapper = {
 		node, clone, isSvg,
@@ -51,13 +56,33 @@ export function wrapNode ( node ) {
 
 		svg.appendChild( clone );
 	} else {
-		const offsetParent = node.offsetParent;
-		const offsetParentStyle = window.getComputedStyle( offsetParent );
-		const offsetParentBcr = offsetParent.getBoundingClientRect();
 
-		clone.style.position = 'absolute';
-		clone.style.top = ( top - parseInt( style.marginTop, 10 ) - ( offsetParentBcr.top - parseInt( offsetParentStyle.marginTop, 10 ) ) ) + 'px';
-		clone.style.left = ( left - parseInt( style.marginLeft, 10 ) - ( offsetParentBcr.left - parseInt( offsetParentStyle.marginLeft, 10 ) ) ) + 'px';
+    if ( destinationIsFixed ){
+			// position relative to the viewport
+			clone.style.position = 'fixed';
+			clone.style.top = ( top - parseInt( style.marginTop, 10 )) + 'px';
+			clone.style.left = ( left - parseInt( style.marginLeft, 10 )) + 'px';
+		}
+		else {
+			const offsetParent = node.offsetParent;
+
+			if (offsetParent === null || offsetParent === document.body || appendToBody){ // parent is fixed, or I want to append the node to the body
+				// position relative to the document
+				const docElem = document.documentElement;
+				clone.style.position = 'absolute';
+				clone.style.top = (top + window.pageYOffset - docElem.clientTop - parseInt( style.marginTop, 10 )) + 'px';
+				clone.style.left = (left + window.pageXOffset - docElem.clientLeft - parseInt( style.marginLeft, 10 )) + 'px';
+			}
+			else {
+				//position relative to the parent
+				const offsetParentStyle = window.getComputedStyle( offsetParent );
+				const offsetParentBcr = offsetParent.getBoundingClientRect();
+
+				clone.style.position = 'absolute';
+				clone.style.top = ( top - parseInt( style.marginTop, 10 ) - ( offsetParentBcr.top - parseInt( offsetParentStyle.marginTop, 10 ) ) ) + 'px';
+				clone.style.left = ( left - parseInt( style.marginLeft, 10 ) - ( offsetParentBcr.left - parseInt( offsetParentStyle.marginLeft, 10 ) ) ) + 'px';
+			}
+		}
 
 		wrapper.transform = ''; // TODO...?
 		wrapper.borderRadius = [
@@ -67,7 +92,12 @@ export function wrapNode ( node ) {
 			parseFloat( style.borderBottomLeftRadius )
 		];
 
-		node.parentNode.appendChild( clone );
+		if(appendToBody){
+			document.body.appendChild( clone );
+		}
+		else {
+			node.parentNode.appendChild( clone );
+		}
 	}
 
 	return wrapper;
@@ -89,4 +119,14 @@ export function showNode ( node ) {
 			node.style.transition = node.__ramjetOriginalTransition__;
 		});
 	}
+}
+
+export function isNodeFixed ( node ) {
+	while (node !== null){
+		if (window.getComputedStyle(node).position === "fixed"){
+			return true;
+		}
+		node = (node.namespaceURI === svgns) ? node.parentNode : node.offsetParent;
+	}
+	return false;
 }

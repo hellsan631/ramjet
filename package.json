@@ -1,7 +1,7 @@
 {
   "name": "ramjet",
   "description": "Transform DOM elements into each another with smooth transitions",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "author": "Rich Harris",
   "license": "MIT",
   "repository": "https://github.com/rich-harris/ramjet",
@@ -31,5 +31,9 @@
     "ractive": "^0.7.2",
     "ractive-events-tap": "^0.2.0",
     "ractive-transitions-fade": "^0.2.0"
+  },
+  "spm": {
+    "main": "dist/ramjet.js",
+    "ignore": ["demo", "test", "src", "scripts"]
   }
 }
